@@ -193,8 +193,22 @@ static GLFWbool createSurface(_GLFWwindow* window,
                               const _GLFWwndconfig* wndconfig)
 {
     window->wl.surface = wl_compositor_create_surface(_glfw.wl.compositor);
-    if (!window->wl.surface)
+    if (!window->wl.surface){
+        _glfwInputError(GLFW_PLATFORM_ERROR,
+                        "Wayland: Failed to create window surface");
         return GLFW_FALSE;
+    }
+
+    // Move the surface listener setup after EGL window creation
+    window->wl.native = wl_egl_window_create(window->wl.surface,
+                                             wndconfig->width,
+                                             wndconfig->height);
+    if (!window->wl.native)
+    {
+        _glfwInputError(GLFW_PLATFORM_ERROR,
+                        "Wayland: Failed to create EGL window");
+        return GLFW_FALSE;
+    }
 
     wl_surface_add_listener(window->wl.surface,
                             &surfaceListener,
@@ -202,9 +216,6 @@ static GLFWbool createSurface(_GLFWwindow* window,
 
     wl_surface_set_user_data(window->wl.surface, window);
 
-    window->wl.native = wl_egl_window_create(window->wl.surface,
-                                             wndconfig->width,
-                                             wndconfig->height);
     if (!window->wl.native)
         return GLFW_FALSE;
 
@@ -393,8 +404,10 @@ int _glfwPlatformCreateWindow(_GLFWwindow* window,
 
     if (ctxconfig->client != GLFW_NO_API)
     {
-        if (!_glfwCreateContextEGL(window, ctxconfig, fbconfig))
+        if (!_glfwCreateContextEGL(window, ctxconfig, fbconfig)){
+            _glfwPlatformDestroyWindow(window);
             return GLFW_FALSE;
+        }
     }
 
     if (wndconfig->title)
